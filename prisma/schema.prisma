@@ -1,0 +1,342 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+model Application {
+  id        String            @id @db.Uuid
+  userId    String            @db.Uuid
+  jobId     String            @db.Uuid
+  status    ApplicationStatus @default(SAVED)
+  appliedAt DateTime?
+  notes     String?
+  createdAt DateTime          @default(now())
+  updatedAt DateTime
+  Job       Job               @relation(fields: [jobId], references: [id], onDelete: NoAction)
+  User      User              @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, jobId])
+  @@index([jobId])
+}
+
+model Document {
+  id               String   @id @db.Uuid
+  userId           String   @db.Uuid
+  title            String
+  fileUrl          String?
+  fileType         String?
+  ingestionStatus  String   @default("PENDING")
+  ingestionModel   String?
+  ingestedAt       DateTime?
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime
+  User             User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  DocumentChunk    DocumentChunk[]
+
+  @@index([userId])
+  @@unique([id, userId])
+}
+
+model DocumentChunk {
+  id             String   @id @db.Uuid
+  documentId     String   @db.Uuid
+  userId         String   @db.Uuid
+  chunkIndex     Int
+  content        String
+  // pgvector values are inserted and searched through parameterized raw SQL.
+  embedding      Unsupported("vector")?
+  embeddingModel String
+  contentHash    String
+  createdAt      DateTime @default(now())
+  Document       Document @relation(fields: [documentId, userId], references: [id, userId], onDelete: Cascade)
+
+  @@unique([documentId, chunkIndex])
+  @@index([userId, documentId])
+}
+
+model Interview {
+  id                String              @id @db.Uuid
+  userId            String              @db.Uuid
+  type              InterviewType
+  targetRole        String?
+  requestedDifficulty Difficulty @default(MEDIUM)
+  status            InterviewStatus     @default(NOT_STARTED)
+  score             Int?
+  summary           String?             @db.Text
+  recommendedTopics Json?
+  startedAt         DateTime?
+  completedAt       DateTime?
+  createdAt         DateTime            @default(now())
+  updatedAt         DateTime
+  User              User                @relation(fields: [userId], references: [id], onDelete: Cascade)
+  InterviewQuestion InterviewQuestion[]
+
+  @@index([userId])
+}
+
+model InterviewAnswer {
+  id                  String            @id @db.Uuid
+  interviewQuestionId String            @unique @db.Uuid
+  answer              String
+  score               Int?
+  feedback            String?
+  strengths           Json?
+  improvements        Json?
+  exampleAnswer       String?           @db.Text
+  createdAt           DateTime          @default(now())
+  InterviewQuestion   InterviewQuestion @relation(fields: [interviewQuestionId], references: [id], onDelete: Cascade)
+}
+
+model InterviewQuestion {
+  id              String           @id @db.Uuid
+  interviewId     String           @db.Uuid
+  question        String
+  difficulty      Difficulty       @default(MEDIUM)
+  order           Int
+  createdAt       DateTime         @default(now())
+  InterviewAnswer InterviewAnswer?
+  Interview       Interview        @relation(fields: [interviewId], references: [id], onDelete: Cascade)
+
+  @@unique([interviewId, order])
+}
+
+model EmailNotification {
+  id          String   @id @db.Uuid
+  userId      String   @db.Uuid
+  template    String
+  status      String   @default("PENDING")
+  attempts    Int      @default(0)
+  providerId  String?
+  lastError   String?  @db.Text
+  sentAt      DateTime?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime
+  User        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, template])
+  @@index([status, updatedAt])
+}
+
+model ResumeAnalysisRecord {
+  id          String   @id @db.Uuid
+  userId      String   @db.Uuid
+  sourceTitle String?
+  targetRole  String?
+  analysis    Json
+  extraction  Json?
+  createdAt   DateTime @default(now())
+  User        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, createdAt])
+}
+
+model JobMatchAnalysis {
+  id             String   @id @db.Uuid
+  userId         String   @db.Uuid
+  targetRole     String?
+  jobDescription String?  @db.Text
+  analysis       Json
+  createdAt      DateTime @default(now())
+  User           User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, createdAt])
+}
+
+model Job {
+  id          String        @id @db.Uuid
+  userId      String        @db.Uuid
+  title       String
+  company     String
+  description String?
+  location    String?
+  jobUrl      String?
+  createdAt   DateTime      @default(now())
+  updatedAt   DateTime
+  Application Application[]
+  User        User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+  JobSkill    JobSkill[]
+
+  @@index([userId])
+}
+
+model JobSkill {
+  id        String   @id @db.Uuid
+  jobId     String   @db.Uuid
+  skillId   String   @db.Uuid
+  createdAt DateTime @default(now())
+  Job       Job      @relation(fields: [jobId], references: [id], onDelete: Cascade)
+  Skill     Skill    @relation(fields: [skillId], references: [id])
+
+  @@unique([jobId, skillId])
+  @@index([skillId])
+}
+
+model Project {
+  id           String   @id @db.Uuid
+  userId       String   @db.Uuid
+  title        String
+  description  String?
+  technologies String[]
+  projectUrl   String?
+  githubUrl    String?
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime
+  User         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+}
+
+model Resume {
+  id        String   @id @db.Uuid
+  userId    String   @db.Uuid
+  title     String
+  fileUrl   String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime
+  User      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+}
+
+model Skill {
+  id        String      @id @db.Uuid
+  name      String      @unique
+  createdAt DateTime    @default(now())
+  updatedAt DateTime
+  JobSkill  JobSkill[]
+  UserSkill UserSkill[]
+}
+
+model StudyPlan {
+  id                     String      @id @db.Uuid
+  userId                 String      @db.Uuid
+  title                  String
+  description            String?
+  targetRole             String?
+  durationWeeks          Int?
+  availableHoursPerWeek  Int?
+  skillGaps              Json?
+  status                 String      @default("ACTIVE")
+  requestKey             String?
+  startDate              DateTime?
+  endDate                DateTime?
+  createdAt              DateTime    @default(now())
+  updatedAt              DateTime
+  User                   User        @relation(fields: [userId], references: [id], onDelete: Cascade)
+  StudyTask              StudyTask[]
+
+  @@index([userId])
+  @@unique([userId, requestKey])
+}
+
+model StudyTask {
+  id              String    @id @db.Uuid
+  studyPlanId     String    @db.Uuid
+  title           String
+  description     String?
+  week            Int?
+  estimatedMinutes Int?
+  resourceUrl     String?
+  dueDate         DateTime?
+  completed       Boolean   @default(false)
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime
+  StudyPlan       StudyPlan @relation(fields: [studyPlanId], references: [id], onDelete: Cascade)
+
+  @@index([studyPlanId])
+}
+
+model User {
+  id           String        @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  name         String
+  email        String        @unique
+  createdAt    DateTime      @default(now())
+  updatedAt    DateTime
+  passwordHash String
+  role         UserRole      @default(USER)
+  Application  Application[]
+  Document     Document[]
+  Interview    Interview[]
+  Job          Job[]
+  Project      Project[]
+  ResumeAnalysisRecord ResumeAnalysisRecord[]
+  JobMatchAnalysis JobMatchAnalysis[]
+  Resume       Resume[]
+  StudyPlan    StudyPlan[]
+  UserProfile  UserProfile?
+  UserSkill    UserSkill[]
+  EmailNotification EmailNotification[]
+}
+
+model UserProfile {
+  id              String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  userId          String   @unique @db.Uuid
+  headline        String?
+  bio             String?
+  targetRole      String?
+  experienceYears Int?
+  location        String?
+  skills          String[]
+  githubUrl       String?
+  linkedinUrl     String?
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime
+  User            User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model UserSkill {
+  id        String     @id @db.Uuid
+  userId    String     @db.Uuid
+  skillId   String     @db.Uuid
+  level     SkillLevel @default(BEGINNER)
+  createdAt DateTime   @default(now())
+  updatedAt DateTime
+  Skill     Skill      @relation(fields: [skillId], references: [id])
+  User      User       @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, skillId])
+  @@index([skillId])
+}
+
+enum ApplicationStatus {
+  SAVED
+  APPLIED
+  OA
+  INTERVIEW
+  OFFER
+  REJECTED
+}
+
+enum Difficulty {
+  EASY
+  MEDIUM
+  HARD
+}
+
+enum InterviewStatus {
+  NOT_STARTED
+  IN_PROGRESS
+  COMPLETED
+  CANCELLED
+}
+
+enum InterviewType {
+  TECHNICAL
+  BEHAVIORAL
+  MIXED
+}
+
+enum SkillLevel {
+  BEGINNER
+  INTERMEDIATE
+  ADVANCED
+}
+
+enum UserRole {
+  USER
+  ADMIN
+}
+
